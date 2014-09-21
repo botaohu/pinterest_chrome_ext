@@ -29,6 +29,49 @@ function youtubeAction(ytplayer, comment) {
 var ytplayer = null;
 var changing = false;
 
+function youtubeJumpto(ytplayer, seconds) {
+  ytplayer.seekTo(seconds);
+  ytplayer.playVideo();
+}
+
+function jumpto(minutesS, secondsS) {
+  var minutes = parseInt(minutesS);
+  var seconds = parseInt(secondsS);
+  if (minutes < 0)
+    return;
+  if (seconds < 0 || seconds >= 60)
+    return;
+  var seekToSeconds = minutes * 60 + seconds;
+
+  var domain = $('.closeupContentSection div.pinDomain.pinCloseupSeoText').text();
+  if (domain == 'vimeo.com') {     
+    var player_iframe = $('.vimeo iframe');
+    if (player_iframe.length > 0) {
+      var player = $f(player_iframe[0]);
+      player.api('seekTo', seekToSeconds);
+      player.api('play');
+    }
+  } else if (domain == 'youtube.com') {
+    var player_iframe = $('.youtube iframe');
+    
+    if (!ytplayer) {
+      var aa = new YT.Player(player_iframe.get(0), 
+        { events: { 
+          'onReady': function (e) {
+              ytplayer = e.target;
+              youtubeJumpto(ytplayer, seekToSeconds);
+            }
+          }
+        }
+      );
+    } else {
+      youtubeJumpto(ytplayer, seekToSeconds);
+    }
+   
+  } else {
+  }
+}
+
 function docChanged(e) {
   if (changing)
     return;
@@ -42,6 +85,14 @@ function docChanged(e) {
     var userComments = $('.closeupContentSection .PinCommentList');
     var commentBox = $('.pinUserCommentBox', userComments);
     var container = $('.commentsContainer', userComments);
+    var messages = $('ul li div.commenterNameCommentText p.commentDescriptionContent', container);
+    messages.html(function (index, text) { 
+      return text.replace(/^(\[(\d+):(\d+)\])/,
+        "<a href='javascript:window.postMessage({ type: \"JUMP_TO\", minutesS: \"$2\", secondsS: \"$3\" }, \"*\");'>$1</a>");
+      });
+
+
+
     commentBox.insertBefore(container);
     $('ul li', container).sort(function(a,b){
        return - parseInt(a.dataset.index) + parseInt(b.dataset.index);
@@ -89,6 +140,16 @@ function docChanged(e) {
   }
   changing = false;
 }
+
+window.addEventListener("message", function(event) {
+  // We only accept messages from ourselves
+  if (event.source != window)
+    return;
+
+  if (event.data.type && (event.data.type == "JUMP_TO")) {
+    jumpto(event.data.minutesS, event.data.secondsS);
+  }
+}, false);
 
 
 document.addEventListener("DOMNodeInserted", docChanged, false);
